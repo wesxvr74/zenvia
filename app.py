@@ -18,14 +18,33 @@ def callback():
     if not data:
         return "Dados ausentes", 400
 
-    assunto = "Novo Callback da Zenvia"
-    corpo = f"Dados recebidos:\n\n{data}"
+    assunto = "Nova Ligação Finalizada na Zenvia"
+    corpo = f"""
+📞 Chamada TTS Recebida
 
-    try:
-        msg = MIMEText(corpo)
-        msg["Subject"] = assunto
-        msg["From"] = EMAIL_ORIGEM
-        msg["To"] = EMAIL_DESTINO
+ID: {data["id"]}
+Status: {data["status"]}
+Número de Origem: {data["numero_origem"]}
+Número de Destino: {data["numero_destino"]}
+Data de Início: {data["data_inicio"]}
+Duração: {data["duracao"]} ({data["duracao_segundos"]} segundos)
+Duração Cobrada: {data["duracao_cobrada"]} ({data["duracao_cobrada_segundos"]} segundos)
+Duração Falada: {data["duracao_falada"]} ({data["duracao_falada_segundos"]} segundos)
+Preço: R$ {data["preco"]}
+
+🎙️ Gravação:
+{data["url_gravacao"]}
+
+Ramal ID: {data["ramal_id"]}
+Tags: {data["tags"]}
+Gravações Parciais: {data["gravacoes_parciais"]}
+"""
+
+try:
+    msg = MIMEText(corpo)
+    msg["From"] = EMAIL_ORIGEM
+    msg["To"] = EMAIL_DESTINO
+
 
         with smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT) as server:
             server.login(EMAIL_ORIGEM, EMAIL_SENHA)

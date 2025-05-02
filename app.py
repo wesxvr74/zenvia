@@ -17,7 +17,7 @@ def callback():
     
     # Formata o corpo do e-mail
     corpo = f"""
-    📞 Chamada TTS Recebida
+    📞 Nova Chamada Finalizada
 
     ID: {data["id"]}
     Status: {data["status"]}
@@ -38,7 +38,7 @@ def callback():
     """
     
     # Assunto do e-mail
-    assunto = "Notificação de Chamada TTS Recebida"
+    assunto = "Notificação de Chamada Finalizada"
     
     # Criação do e-mail
     msg = MIMEText(corpo)

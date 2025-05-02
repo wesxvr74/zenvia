@@ -1,19 +1,19 @@
-import os
+from flask import Flask, request
 import smtplib
 from email.mime.text import MIMEText
-from flask import Flask, request, jsonify
-from dotenv import load_dotenv
-
-load_dotenv()
+import os
 
 app = Flask(__name__)
 
-EMAIL_ORIGEM = os.getenv("EMAIL_ORIGEM")
-EMAIL_SENHA = os.getenv("EMAIL_SENHA")
-EMAIL_DESTINO = os.getenv("EMAIL_DESTINO")
+# Configurações de e-mail
+EMAIL_ORIGEM = os.environ.get("EMAIL_ORIGEM")
+EMAIL_SENHA = os.environ.get("EMAIL_SENHA")
+EMAIL_DESTINO = "delpim@desk.ms"
+SMTP_SERVIDOR = "smtp.hostinger.com"
+SMTP_PORTA = 465
 
 @app.route("/callback", methods=["POST"])
-def callback():
+def receber_callback():
     data = request.get_json()
 
     # Mapeamento de ramal_id para fila
@@ -26,7 +26,7 @@ def callback():
         1040106: "COMERCIAL", 1040121: "COMERCIAL"
     }
 
-    ramal_id = data["ramal_id"]
+    ramal_id = data.get("ramal_id")
     fila = ramais_para_filas.get(ramal_id, "INDEFINIDA")
 
     try:
@@ -34,23 +34,23 @@ def callback():
         corpo = f"""
 📞 Chamada TTS Recebida
 
-ID: {data["id"]}
-Status: {data["status"]}
-Número de Origem: {data["numero_origem"]}
-Número de Destino: {data["numero_destino"]}
-Data de Início: {data["data_inicio"]}
-Duração: {data["duracao"]} ({data["duracao_segundos"]} segundos)
-Duração Cobrada: {data["duracao_cobrada"]} ({data["duracao_cobrada_segundos"]} segundos)
-Duração Falada: {data["duracao_falada"]} ({data["duracao_falada_segundos"]} segundos)
-Preço: R$ {data["preco"]}
+ID: {data.get("id")}
+Status: {data.get("status")}
+Número de Origem: {data.get("numero_origem")}
+Número de Destino: {data.get("numero_destino")}
+Data de Início: {data.get("data_inicio")}
+Duração: {data.get("duracao")} ({data.get("duracao_segundos")} segundos)
+Duração Cobrada: {data.get("duracao_cobrada")} ({data.get("duracao_cobrada_segundos")} segundos)
+Duração Falada: {data.get("duracao_falada")} ({data.get("duracao_falada_segundos")} segundos)
+Preço: R$ {data.get("preco")}
 
 🎙️ Gravação:
-{data["url_gravacao"]}
+{data.get("url_gravacao")}
 
 Fila: {fila}
 Ramal ID: {ramal_id}
-Tags: {data["tags"]}
-Gravações Parciais: {data["gravacoes_parciais"]}
+Tags: {data.get("tags")}
+Gravações Parciais: {data.get("gravacoes_parciais")}
 """
 
         msg = MIMEText(corpo)
@@ -58,19 +58,19 @@ Gravações Parciais: {data["gravacoes_parciais"]}
         msg["From"] = EMAIL_ORIGEM
         msg["To"] = EMAIL_DESTINO
 
-        with smtplib.SMTP_SSL("smtp.hostinger.com", 465) as smtp:
-            smtp.login(EMAIL_ORIGEM, EMAIL_SENHA)
-            smtp.send_message(msg)
+        with smtplib.SMTP_SSL(SMTP_SERVIDOR, SMTP_PORTA) as servidor:
+            servidor.login(EMAIL_ORIGEM, EMAIL_SENHA)
+            servidor.send_message(msg)
 
-        return jsonify({"status": "email enviado"}), 200
+        return {"status": "E-mail enviado com sucesso!"}, 200
 
     except Exception as e:
         print("Erro ao enviar e-mail:", e)
-        return jsonify({"status": "erro", "detalhe": str(e)}), 500
+        return {"erro": str(e)}, 500
 
 @app.route("/", methods=["GET"])
 def home():
-    return "API de Callback da Zenvia está rodando!", 200
+    return "API de Callback da Zenvia ativa!", 200
 
 if __name__ == "__main__":
-    app.run(debug=True, port=8080)
+    app.run(debug=True)

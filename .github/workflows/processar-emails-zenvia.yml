@@ -1,0 +1,13 @@
+name: Processar Emails Zenvia
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # executa no minuto zero de toda hora
+
+jobs:
+  processar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Chamar endpoint /processar
+        run: curl -X GET https://zenvia-10gd.onrender.com/processar

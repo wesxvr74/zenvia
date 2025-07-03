@@ -2,6 +2,8 @@ from flask import Flask, request
 import smtplib
 from email.mime.text import MIMEText
 import os
+from pymongo import MongoClient
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -12,25 +14,41 @@ EMAIL_DESTINO = "delpim@desk.ms"
 SMTP_SERVIDOR = "smtp.hostinger.com"
 SMTP_PORTA = 465
 
+# Conexão MongoDB
+MONGO_URI = os.environ.get("MONGODB_URI")
+mongo_client = MongoClient(MONGO_URI)
+db = mongo_client.zenvia
+collection = db.callbacks
+
+# Mapeamento de ramal_id para fila
+ramais_para_filas = {
+    542643: "SUPORTE", 542644: "SUPORTE", 542645: "SUPORTE", 542646: "SUPORTE",
+    542647: "SUPORTE", 579906: "SUPORTE", 542649: "SUPORTE",
+    542650: "FINANCEIRO", 542655: "FINANCEIRO", 871082: "FINANCEIRO", 542639: "FINANCEIRO",
+    542651: "COMERCIAL", 542652: "COMERCIAL", 542653: "COMERCIAL",
+    753881: "COMERCIAL", 769308: "COMERCIAL", 1038705: "COMERCIAL",
+    1040106: "COMERCIAL", 1040121: "COMERCIAL"
+}
+
 @app.route("/callback", methods=["POST"])
 def receber_callback():
     data = request.get_json()
+    data["processado"] = False
+    data["recebido_em"] = datetime.utcnow()
 
-    # Mapeamento de ramal_id para fila
-    ramais_para_filas = {
-        542643: "SUPORTE", 542644: "SUPORTE", 542645: "SUPORTE", 542646: "SUPORTE",
-        542647: "SUPORTE", 579906: "SUPORTE", 542649: "SUPORTE",
-        542650: "FINANCEIRO", 542655: "FINANCEIRO", 871082: "FINANCEIRO", 542639: "FINANCEIRO",
-        542651: "COMERCIAL", 542652: "COMERCIAL", 542653: "COMERCIAL",
-        753881: "COMERCIAL", 769308: "COMERCIAL", 1038705: "COMERCIAL",
-        1040106: "COMERCIAL", 1040121: "COMERCIAL"
-    }
+    # Salvar no MongoDB
+    collection.insert_one(data)
+    return {"status": "Recebido e armazenado"}, 200
 
-    ramal_id = data.get("ramal_id")
-    fila = ramais_para_filas.get(ramal_id, "INDEFINIDA")
+@app.route("/processar", methods=["GET"])
+def processar_emails():
+    # Buscar callbacks não processados
+    registros = collection.find({"processado": False})
 
-    try:
-        assunto = "Notificação de Chamada Finalizada"
+    enviados = 0
+    for data in registros:
+        fila = ramais_para_filas.get(data.get("ramal_id"), "INDEFINIDA")
+
         corpo = f"""
 📞 Chamada TTS Recebida
 
@@ -48,25 +66,29 @@ Preço: R$ {data.get("preco")}
 {data.get("url_gravacao")}
 
 Fila: {fila}
-Ramal ID: {ramal_id}
+Ramal ID: {data.get("ramal_id")}
 Tags: {data.get("tags")}
 Gravações Parciais: {data.get("gravacoes_parciais")}
 """
 
-        msg = MIMEText(corpo)
-        msg["Subject"] = assunto
-        msg["From"] = EMAIL_ORIGEM
-        msg["To"] = EMAIL_DESTINO
+        try:
+            msg = MIMEText(corpo)
+            msg["Subject"] = "Notificação de Chamada Finalizada"
+            msg["From"] = EMAIL_ORIGEM
+            msg["To"] = EMAIL_DESTINO
 
-        with smtplib.SMTP_SSL(SMTP_SERVIDOR, SMTP_PORTA) as servidor:
-            servidor.login(EMAIL_ORIGEM, EMAIL_SENHA)
-            servidor.send_message(msg)
+            with smtplib.SMTP_SSL(SMTP_SERVIDOR, SMTP_PORTA) as servidor:
+                servidor.login(EMAIL_ORIGEM, EMAIL_SENHA)
+                servidor.send_message(msg)
 
-        return {"status": "E-mail enviado com sucesso!"}, 200
+            # Marca como processado
+            collection.update_one({"_id": data["_id"]}, {"$set": {"processado": True}})
+            enviados += 1
 
-    except Exception as e:
-        print("Erro ao enviar e-mail:", e)
-        return {"erro": str(e)}, 500
+        except Exception as e:
+            print("Erro ao enviar e-mail:", e)
+
+    return {"status": f"{enviados} e-mail(s) enviado(s)."}, 200
 
 @app.route("/", methods=["GET"])
 def home():

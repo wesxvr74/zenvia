@@ -30,15 +30,18 @@ ramais_para_filas = {
     1040106: "COMERCIAL", 1040121: "COMERCIAL"
 }
 
-@app.route("/callback", methods=["POST"])
-def receber_callback():
-    data = request.get_json()
-    data["processado"] = False
-    data["recebido_em"] = datetime.utcnow()
-
-    # Salvar no MongoDB
-    collection.insert_one(data)
-    return {"status": "Recebido e armazenado"}, 200
+@app.route('/callback', methods=['POST'])
+def callback():
+    try:
+        data = request.json
+        # Salvar no Mongo
+        collection.insert_one(data)
+        return jsonify({'message': 'Callback processado com sucesso'}), 200
+    except Exception as e:
+        # Loga o erro no terminal do Render
+        print('Erro no callback:', e)
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 @app.route("/processar", methods=["GET"])
 def processar_emails():

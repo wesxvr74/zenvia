@@ -35,11 +35,14 @@ ramais_para_filas = {
 def callback():
     try:
         data = request.json
+        # Adiciona controle de processamento
+        data["processado"] = False
+        data["criado_em"] = datetime.utcnow()
+
         # Salvar no Mongo
         collection.insert_one(data)
         return jsonify({'message': 'Callback processado com sucesso'}), 200
     except Exception as e:
-        # Loga o erro no terminal do Render
         print('Erro no callback:', e)
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500

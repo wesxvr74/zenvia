@@ -1,7 +1,7 @@
 name: Processar Emails Zenvia
 on:
   schedule:
-    - cron: '*/14 * * * *'  # Executa a cada 14 minutos
+    - cron: '*/10 * * * *'  # Executa a cada 10 minutos
   workflow_dispatch:         # Permite execução manual
 
 jobs:

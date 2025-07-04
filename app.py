@@ -31,6 +31,13 @@ ramais_para_filas = {
     1040106: "COMERCIAL", 1040121: "COMERCIAL"
 }
 
+@app.route("/meuip", methods=["GET"])
+def meu_ip():
+    import requests
+    ip = requests.get("https://api.ipify.org").text
+    return f"Meu IP externo é: {ip}", 200
+    
+
 @app.route('/callback', methods=['POST'])
 def callback():
     try:

@@ -55,58 +55,46 @@ def callback():
         return jsonify({'error': str(e)}), 500
 
 @app.route("/processar", methods=["GET"])
-def processar_emails():
-    # Buscar callbacks não processados
+def processar_callbacks():
     registros = collection.find({"processado": False})
-
     enviados = 0
+
     for data in registros:
         fila = ramais_para_filas.get(data.get("ramal_id"), "INDEFINIDA")
 
-        corpo = f"""
-📞 Chamada TTS Recebida
-
-ID: {data.get("id")}
-Status: {data.get("status")}
-Número de Origem: {data.get("numero_origem")}
-Número de Destino: {data.get("numero_destino")}
-Data de Início: {data.get("data_inicio")}
-Duração: {data.get("duracao")} ({data.get("duracao_segundos")} segundos)
-Duração Cobrada: {data.get("duracao_cobrada")} ({data.get("duracao_cobrada_segundos")} segundos)
-Duração Falada: {data.get("duracao_falada")} ({data.get("duracao_falada_segundos")} segundos)
-Preço: R$ {data.get("preco")}
-
-🎙️ Gravação:
-{data.get("url_gravacao")}
-
-Fila: {fila}
-Ramal ID: {data.get("ramal_id")}
-Tags: {data.get("tags")}
-Gravações Parciais: {data.get("gravacoes_parciais")}
-"""
+        payload = {
+            "id": data.get("id"),
+            "status": data.get("status"),
+            "numero_origem": data.get("numero_origem"),
+            "numero_destino": data.get("numero_destino"),
+            "data_inicio": data.get("data_inicio"),
+            "duracao": data.get("duracao"),
+            "duracao_segundos": data.get("duracao_segundos"),
+            "duracao_cobrada": data.get("duracao_cobrada"),
+            "duracao_cobrada_segundos": data.get("duracao_cobrada_segundos"),
+            "duracao_falada": data.get("duracao_falada"),
+            "duracao_falada_segundos": data.get("duracao_falada_segundos"),
+            "preco": data.get("preco"),
+            "url_gravacao": data.get("url_gravacao"),
+            "fila": fila,
+            "ramal_id": data.get("ramal_id"),
+            "tags": data.get("tags"),
+            "gravacoes_parciais": data.get("gravacoes_parciais")
+        }
 
         try:
-            msg = MIMEText(corpo)
-            msg["Subject"] = "Notificação de Chamada Finalizada"
-            msg["From"] = EMAIL_ORIGEM
-            msg["To"] = EMAIL_DESTINO
-
-            with smtplib.SMTP_SSL(SMTP_SERVIDOR, SMTP_PORTA) as servidor:
-                servidor.login(EMAIL_ORIGEM, EMAIL_SENHA)
-                servidor.send_message(msg)
+            response = requests.post(
+                f"{AWS_ENDPOINT}?token={AWS_TOKEN}",
+                json=payload,
+                timeout=10
+            )
+            response.raise_for_status()  # Gera exceção se status != 2xx
 
             # Marca como processado
             collection.update_one({"_id": data["_id"]}, {"$set": {"processado": True}})
             enviados += 1
 
         except Exception as e:
-            print("Erro ao enviar e-mail:", e)
+            print("Erro ao enviar para Lambda:", e)
 
-    return {"status": f"{enviados} e-mail(s) enviado(s)."}, 200
-
-@app.route("/", methods=["GET"])
-def home():
-    return "API de Callback da Zenvia ativa!", 200
-
-if __name__ == "__main__":
-    app.run(debug=True)
+    return {"status": f"{enviados} callback(s) enviado(s) para Lambda."}, 200

@@ -9,6 +9,10 @@ from datetime import datetime
 
 app = Flask(__name__)
 
+#Variaveis Render
+AWS_ENDPOINT = os.getenv("AWS_ENDPOINT")
+AWS_TOKEN = os.getenv("AWS_TOKEN")
+
 # Configurações de e-mail
 EMAIL_ORIGEM = os.environ.get("EMAIL_ORIGEM")
 EMAIL_SENHA = os.environ.get("EMAIL_SENHA")

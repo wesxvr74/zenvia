@@ -61,55 +61,76 @@ def callback():
 
 @app.route("/processar", methods=["GET"])
 def processar_callbacks():
-    page_size = 10  # quantidade de registros por página
-    page = int(request.args.get("page", 0))  # página atual, default = 0
+    registros = collection.find({"processado": False})
     enviados = 0
-
-    # Buscar 10 registros não processados
-    registros = list(collection.find({"processado": False})
-                     .skip(page * page_size)
-                     .limit(page_size))
 
     for data in registros:
         fila = ramais_para_filas.get(data.get("ramal_id"), "INDEFINIDA")
 
-        payload = {
-            "id": data.get("id"),
-            "status": data.get("status"),
-            "numero_origem": data.get("numero_origem"),
-            "numero_destino": data.get("numero_destino"),
-            "data_inicio": data.get("data_inicio"),
-            "duracao": data.get("duracao"),
-            "duracao_segundos": data.get("duracao_segundos"),
-            "duracao_cobrada": data.get("duracao_cobrada"),
-            "duracao_cobrada_segundos": data.get("duracao_cobrada_segundos"),
-            "duracao_falada": data.get("duracao_falada"),
-            "duracao_falada_segundos": data.get("duracao_falada_segundos"),
-            "preco": data.get("preco"),
-            "url_gravacao": data.get("url_gravacao"),
-            "fila": fila,
-            "ramal_id": data.get("ramal_id"),
-            "tags": data.get("tags"),
-            "gravacoes_parciais": data.get("gravacoes_parciais")
-        }
+        # Monta o corpo do e-mail
+        corpo_email = f"""
+📞 Chamada Recebida
+
+ID: {data.get('id')}
+Status: {data.get('status')}
+Número de Origem: {data.get('numero_origem')}
+Número de Destino: {data.get('numero_destino')}
+Data de Início: {data.get('data_inicio')}
+Duração: {data.get('duracao')} ({data.get('duracao_segundos')}s)
+Duração Cobrada: {data.get('duracao_cobrada')} ({data.get('duracao_cobrada_segundos')}s)
+Duração Falada: {data.get('duracao_falada')} ({data.get('duracao_falada_segundos')}s)
+Preço: R$ {data.get('preco')}
+Gravação: {data.get('url_gravacao')}
+Fila: {fila}
+Ramal ID: {data.get('ramal_id')}
+Tags: {data.get('tags')}
+Gravações Parciais: {data.get('gravacoes_parciais')}
+"""
 
         try:
+            # Envia o e-mail
+            msg = MIMEText(corpo_email)
+            msg["Subject"] = "Notificação de Chamada Finalizada"
+            msg["From"] = EMAIL_ORIGEM
+            msg["To"] = "delpim@desk.ms"
+
+            with smtplib.SMTP_SSL(SMTP_SERVIDOR, SMTP_PORTA) as servidor:
+                servidor.login(EMAIL_ORIGEM, EMAIL_SENHA)
+                servidor.send_message(msg)
+
+            # Se e-mail enviado com sucesso, envia para Lambda
+            payload = {
+                "id": data.get("id"),
+                "status": data.get("status"),
+                "numero_origem": data.get("numero_origem"),
+                "numero_destino": data.get("numero_destino"),
+                "data_inicio": data.get("data_inicio"),
+                "duracao": data.get("duracao"),
+                "duracao_segundos": data.get("duracao_segundos"),
+                "duracao_cobrada": data.get("duracao_cobrada"),
+                "duracao_cobrada_segundos": data.get("duracao_cobrada_segundos"),
+                "duracao_falada": data.get("duracao_falada"),
+                "duracao_falada_segundos": data.get("duracao_falada_segundos"),
+                "preco": data.get("preco"),
+                "url_gravacao": data.get("url_gravacao"),
+                "fila": fila,
+                "ramal_id": data.get("ramal_id"),
+                "tags": data.get("tags"),
+                "gravacoes_parciais": data.get("gravacoes_parciais")
+            }
+
             response = requests.post(
                 f"{AWS_ENDPOINT}?token={AWS_TOKEN}",
                 json=payload,
-                timeout=30
+                timeout=10
             )
             response.raise_for_status()
 
-            # Marca como processado
+            # Marca callback como processado
             collection.update_one({"_id": data["_id"]}, {"$set": {"processado": True}})
             enviados += 1
 
         except Exception as e:
-            print("Erro ao enviar para Lambda:", e)
+            print("Erro ao processar callback:", e)
 
-    return {
-        "status": f"{enviados} callback(s) enviados para Lambda.",
-        "pagina": page,
-        "enviados_pagina": len(registros)
-    }, 200
+    return {"status": f"{enviados} callback(s) processado(s) e enviados para Lambda."}, 200

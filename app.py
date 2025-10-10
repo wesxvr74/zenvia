@@ -61,16 +61,14 @@ def callback():
 
 @app.route("/processar", methods=["GET"])
 def processar_callbacks():
-    # Recebe parâmetros de paginação da query string
-    pagina = int(request.args.get("pagina", 1))  # página padrão = 1
-    tamanho = int(request.args.get("tamanho", 10))  # tamanho padrão = 10
-
-    # Calcula quantos registros pular
-    skip = (pagina - 1) * tamanho
-
-    # Buscar registros não processados com limite e skip
-    registros = collection.find({"processado": False}).skip(skip).limit(tamanho)
+    page_size = 10  # quantidade de registros por página
+    page = int(request.args.get("page", 0))  # página atual, default = 0
     enviados = 0
+
+    # Buscar 10 registros não processados
+    registros = list(collection.find({"processado": False})
+                     .skip(page * page_size)
+                     .limit(page_size))
 
     for data in registros:
         fila = ramais_para_filas.get(data.get("ramal_id"), "INDEFINIDA")
@@ -99,20 +97,19 @@ def processar_callbacks():
             response = requests.post(
                 f"{AWS_ENDPOINT}?token={AWS_TOKEN}",
                 json=payload,
-                timeout=10
+                timeout=30
             )
             response.raise_for_status()
+
             # Marca como processado
             collection.update_one({"_id": data["_id"]}, {"$set": {"processado": True}})
             enviados += 1
 
-        except requests.exceptions.Timeout:
-            print(f"Timeout ao enviar callback ID {data.get('id')}")
-        except requests.exceptions.RequestException as e:
-            print(f"Erro ao enviar callback ID {data.get('id')}: {e}")
+        except Exception as e:
+            print("Erro ao enviar para Lambda:", e)
 
     return {
-        "pagina": pagina,
-        "tamanho": tamanho,
-        "status": f"{enviados} callback(s) enviado(s) para Lambda."
+        "status": f"{enviados} callback(s) enviados para Lambda.",
+        "pagina": page,
+        "enviados_pagina": len(registros)
     }, 200

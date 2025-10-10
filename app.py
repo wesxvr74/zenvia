@@ -91,7 +91,7 @@ def processar_callbacks():
             response = requests.post(
                 f"{AWS_ENDPOINT}?token={AWS_TOKEN}",
                 json=payload,
-                timeout=10
+                timeout=1000000
             )
             response.raise_for_status()  # Gera exceção se status != 2xx
 
